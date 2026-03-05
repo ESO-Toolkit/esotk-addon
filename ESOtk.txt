@@ -3,6 +3,7 @@
 ## Version: 1.0.0
 ## APIVersion: 101043
 ## Description: Official ESOTK addon
+## OptionalDependsOn: LibAddonMenu-2.0
 ## SavedVariables: ESOtk_SavedVars
 
 ; Shared utilities (loaded first — no dependencies)
@@ -16,6 +17,7 @@ GearScanner.lua
 ValidationUI.lua
 ValidationOverlay.xml
 ValidationOverlay.lua
+Settings.lua
 
 ; Main entry point (loaded last — orchestrates modules)
 ESOtk.lua
