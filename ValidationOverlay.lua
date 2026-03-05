@@ -49,6 +49,7 @@ local CLR = {
 
 local rows = {}       -- array of created row controls
 local isShowing = false
+local isLocked = false
 local eventRegistered = false
 
 -- ---------------------------------------------------------------------------
@@ -241,12 +242,21 @@ function Overlay.Show()
     control:SetHidden(false)
     isShowing = true
 
-    -- Restore saved position if available
+    -- Sync saved var
     local sv = ESOtk.savedVars
+    if sv then sv.overlayVisible = true end
+
+    -- Restore saved position if available
     if sv and sv.overlayPos then
         control:ClearAnchors()
         control:SetAnchor(TOPLEFT, GuiRoot, TOPLEFT, sv.overlayPos.x, sv.overlayPos.y)
     end
+
+    -- Apply lock state
+    if sv then
+        isLocked = sv.overlayLocked or false
+    end
+    Overlay.ApplyLockState()
 
     -- If we have a last result, populate immediately
     EnsureModules()
@@ -274,6 +284,10 @@ function Overlay.Hide()
 
     control:SetHidden(true)
     isShowing = false
+
+    -- Sync saved var
+    local sv = ESOtk.savedVars
+    if sv then sv.overlayVisible = false end
 end
 
 function Overlay.Toggle()
@@ -286,6 +300,40 @@ end
 
 function Overlay.IsShowing()
     return isShowing
+end
+
+-- ---------------------------------------------------------------------------
+-- Lock / Unlock (draggable vs fixed)
+-- ---------------------------------------------------------------------------
+
+--- Apply the current lock state to the overlay control.
+function Overlay.ApplyLockState()
+    local control = GetControl(CONTROL_NAME)
+    if not control then return end
+    control:SetMovable(not isLocked)
+    control:SetMouseEnabled(true)  -- always mouse-enabled for the close button
+end
+
+--- Set the overlay lock state.
+--- @param locked boolean  true = fixed position, false = draggable
+function Overlay.SetLocked(locked)
+    isLocked = locked
+    local sv = ESOtk.savedVars
+    if sv then sv.overlayLocked = locked end
+    Overlay.ApplyLockState()
+end
+
+function Overlay.IsLocked()
+    return isLocked
+end
+
+--- Reset the overlay to its default position (top-right corner).
+function Overlay.ResetPosition()
+    local control = GetControl(CONTROL_NAME)
+    if not control then return end
+    control:ClearAnchors()
+    control:SetAnchor(TOPRIGHT, GuiRoot, TOPRIGHT, -20, 80)
+    Overlay.SavePosition()
 end
 
 -- ---------------------------------------------------------------------------
@@ -373,6 +421,15 @@ function Overlay.HandleCommand(args)
         Overlay.Hide()
     elseif subcommand == "toggle" or subcommand == "" then
         Overlay.Toggle()
+    elseif subcommand == "lock" then
+        Overlay.SetLocked(true)
+        Util.Print("Overlay position locked.")
+    elseif subcommand == "unlock" then
+        Overlay.SetLocked(false)
+        Util.Print("Overlay position unlocked — drag to reposition.")
+    elseif subcommand == "reset" then
+        Overlay.ResetPosition()
+        Util.Print("Overlay position reset to default.")
     elseif subcommand == "refresh" then
         if isShowing and RosterValidator and RosterValidator.lastResult then
             OnGroupChanged()
@@ -385,6 +442,9 @@ function Overlay.HandleCommand(args)
         Util.Print("  show     — Show the validation overlay")
         Util.Print("  hide     — Hide the validation overlay")
         Util.Print("  toggle   — Toggle overlay visibility (default)")
+        Util.Print("  lock     — Lock overlay position")
+        Util.Print("  unlock   — Unlock overlay (draggable)")
+        Util.Print("  reset    — Reset overlay to default position")
         Util.Print("  refresh  — Force refresh the overlay data")
     end
 end
