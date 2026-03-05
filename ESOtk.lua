@@ -17,11 +17,12 @@ addon.version = ADDON_VERSION
 -- ---------------------------------------------------------------------------
 -- Saved variables defaults
 -- ---------------------------------------------------------------------------
-local SAVED_VARS_VERSION = 2
+local SAVED_VARS_VERSION = 3
 local DEFAULT_SAVED_VARS = {
     version = SAVED_VARS_VERSION,
-    rosters = {},  -- roster storage for RosterImport (ESO-654)
-    verbose = true, -- show informational messages in chat
+    rosters = {},       -- roster storage for RosterImport (ESO-654)
+    verbose = true,     -- show informational messages in chat
+    overlayPos = nil,   -- { x, y } saved position for ValidationOverlay (ESO-660)
 }
 
 -- ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ function addon.PrintHelp()
     Util.Print("  /esotk roster    — Roster import/management (import, list, delete, clear)")
     Util.Print("  /esotk validate  — Run roster validation")
     Util.Print("  /esotk gear      — Print local player gear (add roster name to validate)")
+    Util.Print("  /esotk ui        — Toggle validation overlay (show/hide/refresh)")
     Util.Print("  /esotk help      — Show this help message")
 end
 
@@ -61,6 +63,8 @@ local function OnSlashCommand(args)
         else
             addon.GearScanner.PrintGearInfo()
         end
+    elseif command == "ui" then
+        addon.ValidationOverlay.HandleCommand(rest)
     elseif command == "help" or command == "" then
         addon.PrintHelp()
     else
@@ -124,6 +128,12 @@ local function OnAddonLoaded(event, addonName)
 
     -- Register settings panel (requires LibAddonMenu-2.0)
     CreateSettingsPanel()
+
+    -- Hook overlay drag-stop for position persistence
+    local overlayCtl = GetControl("ESOtk_ValidationOverlay")
+    if overlayCtl then
+        overlayCtl:SetHandler("OnMoveStop", function() addon.ValidationOverlay.OnMoveStop() end)
+    end
 
     addon.Util.Print("v" .. ADDON_VERSION .. " loaded. Type /esotk help for commands.")
 end
