@@ -14,6 +14,8 @@ RosterImport.lua
 RosterValidator.lua
 GearScanner.lua
 ValidationUI.lua
+ValidationOverlay.xml
+ValidationOverlay.lua
 
 ; Main entry point (loaded last — orchestrates modules)
 ESOtk.lua
