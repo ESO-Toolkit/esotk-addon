@@ -5,4 +5,15 @@
 ## Description: Official ESOTK addon
 ## SavedVariables: ESOtk_SavedVars
 
+; Shared utilities (loaded first — no dependencies)
+Util.lua
+
+; Feature modules (order: scanner → import → validation → UI)
+GroupScanner.lua
+RosterImport.lua
+RosterValidator.lua
+GearScanner.lua
+ValidationUI.lua
+
+; Main entry point (loaded last — orchestrates modules)
 ESOtk.lua
