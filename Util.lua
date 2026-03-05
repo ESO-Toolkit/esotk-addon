@@ -47,6 +47,143 @@ function Util.Base64Decode(data)
     end))
 end
 
+--- Decode a Base64URL string (URL-safe variant used by the web UI).
+--- Converts Base64URL chars to standard Base64 and pads, then decodes.
+--- @param data string  Base64URL-encoded input
+--- @return string       Decoded output
+function Util.Base64UrlDecode(data)
+    -- Replace URL-safe characters with standard Base64 equivalents
+    data = data:gsub("-", "+"):gsub("_", "/")
+    -- Pad to multiple of 4
+    local remainder = #data % 4
+    if remainder > 0 then
+        data = data .. string.rep("=", 4 - remainder)
+    end
+    return Util.Base64Decode(data)
+end
+
+-- ---------------------------------------------------------------------------
+-- Minimal JSON parser (decode only)
+-- ESO Lua has no built-in JSON library. This handles the subset of JSON
+-- produced by the web UI roster export.
+-- ---------------------------------------------------------------------------
+
+local JsonDecode  -- forward declaration
+
+local function skipWhitespace(s, pos)
+    return s:match("^%s*()", pos)
+end
+
+local function decodeString(s, pos)
+    -- pos should point at the opening quote
+    assert(s:sub(pos, pos) == '"', "Expected '\"' at position " .. pos)
+    pos = pos + 1
+    local parts = {}
+    while pos <= #s do
+        local c = s:sub(pos, pos)
+        if c == '"' then
+            return table.concat(parts), pos + 1
+        elseif c == "\\" then
+            pos = pos + 1
+            local esc = s:sub(pos, pos)
+            if     esc == '"' then parts[#parts + 1] = '"'
+            elseif esc == "\\" then parts[#parts + 1] = "\\"
+            elseif esc == "/"  then parts[#parts + 1] = "/"
+            elseif esc == "n"  then parts[#parts + 1] = "\n"
+            elseif esc == "r"  then parts[#parts + 1] = "\r"
+            elseif esc == "t"  then parts[#parts + 1] = "\t"
+            elseif esc == "u"  then
+                local hex = s:sub(pos + 1, pos + 4)
+                parts[#parts + 1] = string.char(tonumber(hex, 16))
+                pos = pos + 4
+            end
+            pos = pos + 1
+        else
+            parts[#parts + 1] = c
+            pos = pos + 1
+        end
+    end
+    error("Unterminated string")
+end
+
+local function decodeNumber(s, pos)
+    local numStr = s:match("^-?%d+%.?%d*[eE]?[+-]?%d*()", pos)
+    if not numStr then error("Invalid number at position " .. pos) end
+    local endPos = s:match("^-?%d+%.?%d*[eE]?[+-]?%d*()", pos)
+    local raw = s:sub(pos, endPos - 1)
+    return tonumber(raw), endPos
+end
+
+local function decodeArray(s, pos)
+    -- pos points at '['
+    pos = skipWhitespace(s, pos + 1)
+    local arr = {}
+    if s:sub(pos, pos) == "]" then return arr, pos + 1 end
+    while true do
+        local val
+        val, pos = JsonDecode(s, pos)
+        arr[#arr + 1] = val
+        pos = skipWhitespace(s, pos)
+        local c = s:sub(pos, pos)
+        if c == "]" then return arr, pos + 1 end
+        if c ~= "," then error("Expected ',' or ']' at position " .. pos) end
+        pos = skipWhitespace(s, pos + 1)
+    end
+end
+
+local function decodeObject(s, pos)
+    -- pos points at '{'
+    pos = skipWhitespace(s, pos + 1)
+    local obj = {}
+    if s:sub(pos, pos) == "}" then return obj, pos + 1 end
+    while true do
+        local key
+        key, pos = decodeString(s, pos)
+        pos = skipWhitespace(s, pos)
+        assert(s:sub(pos, pos) == ":", "Expected ':' at position " .. pos)
+        pos = skipWhitespace(s, pos + 1)
+        local val
+        val, pos = JsonDecode(s, pos)
+        obj[key] = val
+        pos = skipWhitespace(s, pos)
+        local c = s:sub(pos, pos)
+        if c == "}" then return obj, pos + 1 end
+        if c ~= "," then error("Expected ',' or '}' at position " .. pos) end
+        pos = skipWhitespace(s, pos + 1)
+    end
+end
+
+JsonDecode = function(s, pos)
+    pos = skipWhitespace(s, pos or 1)
+    local c = s:sub(pos, pos)
+    if c == '"'       then return decodeString(s, pos)
+    elseif c == "{"   then return decodeObject(s, pos)
+    elseif c == "["   then return decodeArray(s, pos)
+    elseif c == "t"   then
+        assert(s:sub(pos, pos + 3) == "true", "Invalid literal at " .. pos)
+        return true, pos + 4
+    elseif c == "f"   then
+        assert(s:sub(pos, pos + 4) == "false", "Invalid literal at " .. pos)
+        return false, pos + 5
+    elseif c == "n"   then
+        assert(s:sub(pos, pos + 3) == "null", "Invalid literal at " .. pos)
+        return nil, pos + 4
+    else
+        return decodeNumber(s, pos)
+    end
+end
+
+--- Decode a JSON string into a Lua table/value.
+--- @param s string  JSON string
+--- @return any       Decoded Lua value
+function Util.JsonDecode(s)
+    if not s or s == "" then
+        error("Empty JSON input")
+    end
+    local val, pos = JsonDecode(s, 1)
+    return val
+end
+
 --- Split a string by a delimiter.
 --- @param str string
 --- @param sep string  Separator pattern (default: "%s")
