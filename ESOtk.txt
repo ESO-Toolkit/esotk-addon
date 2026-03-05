@@ -1,0 +1,8 @@
+## Title: ESOtk
+## Author: ESO-Toolkit
+## Version: 1.0.0
+## APIVersion: 101043
+## Description: Official ESOTK addon
+## SavedVariables: ESOtk_SavedVars
+
+ESOtk.lua

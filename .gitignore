@@ -1,0 +1,10 @@
+# ESO addon saved variables (generated at runtime)
+SavedVariables/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+*.swp
