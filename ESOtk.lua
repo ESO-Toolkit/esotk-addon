@@ -32,7 +32,7 @@ function addon.PrintHelp()
     Util.Print("  /esotk group     — Print current group info")
     Util.Print("  /esotk roster    — Roster import/management (import, list, delete, clear)")
     Util.Print("  /esotk validate  — Run roster validation")
-    Util.Print("  /esotk gear      — Print local player gear")
+    Util.Print("  /esotk gear      — Print local player gear (add roster name to validate)")
     Util.Print("  /esotk help      — Show this help message")
 end
 
@@ -55,7 +55,11 @@ local function OnSlashCommand(args)
     elseif command == "validate" then
         addon.RosterValidator.HandleCommand(rest)
     elseif command == "gear" then
-        addon.GearScanner.PrintGearInfo()
+        if rest and rest ~= "" then
+            addon.GearScanner.PrintGearValidation(rest)
+        else
+            addon.GearScanner.PrintGearInfo()
+        end
     elseif command == "help" or command == "" then
         addon.PrintHelp()
     else
