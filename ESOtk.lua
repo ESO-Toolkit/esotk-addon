@@ -17,10 +17,13 @@ addon.version = ADDON_VERSION
 -- ---------------------------------------------------------------------------
 -- Saved variables defaults
 -- ---------------------------------------------------------------------------
-local SAVED_VARS_VERSION = 2
+local SAVED_VARS_VERSION = 4
 local DEFAULT_SAVED_VARS = {
     version = SAVED_VARS_VERSION,
-    rosters = {},  -- roster storage for RosterImport (ESO-654)
+    rosters = {},           -- roster storage for RosterImport (ESO-654)
+    overlayPos = nil,       -- { x, y } saved position for ValidationOverlay (ESO-660)
+    overlayVisible = false, -- whether overlay is shown on load (ESO-660)
+    overlayLocked = false,  -- whether overlay position is locked (ESO-660)
 }
 
 -- ---------------------------------------------------------------------------
@@ -33,6 +36,8 @@ function addon.PrintHelp()
     Util.Print("  /esotk roster    — Roster import/management (import, list, delete, clear)")
     Util.Print("  /esotk validate  — Run roster validation")
     Util.Print("  /esotk gear      — Print local player gear (add roster name to validate)")
+    Util.Print("  /esotk ui        — Toggle validation overlay (show/hide/lock/unlock/refresh)")
+    Util.Print("  /esotk settings  — Open settings panel (requires LibAddonMenu-2.0)")
     Util.Print("  /esotk help      — Show this help message")
 end
 
@@ -60,6 +65,8 @@ local function OnSlashCommand(args)
         else
             addon.GearScanner.PrintGearInfo()
         end
+    elseif command == "ui" then
+        addon.ValidationOverlay.HandleCommand(rest)
     elseif command == "help" or command == "" then
         addon.PrintHelp()
     else
@@ -85,6 +92,20 @@ local function OnAddonLoaded(event, addonName)
 
     -- Register slash command
     SLASH_COMMANDS["/esotk"] = OnSlashCommand
+
+    -- Hook overlay drag-stop for position persistence
+    local overlayCtl = GetControl("ESOtk_ValidationOverlay")
+    if overlayCtl then
+        overlayCtl:SetHandler("OnMoveStop", function() addon.ValidationOverlay.OnMoveStop() end)
+    end
+
+    -- Restore overlay visibility from saved state
+    if addon.savedVars.overlayVisible then
+        addon.ValidationOverlay.Show()
+    end
+
+    -- Register settings panel (requires LibAddonMenu-2.0)
+    addon.Settings.Init()
 
     addon.Util.Print("v" .. ADDON_VERSION .. " loaded. Type /esotk help for commands.")
 end
