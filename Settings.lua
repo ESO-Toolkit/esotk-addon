@@ -36,7 +36,28 @@ function Settings.Init()
     -- Options controls
     local optionsTable = {
         -- ---------------------------------------------------------------
-        -- Overlay header
+        -- General
+        -- ---------------------------------------------------------------
+        {
+            type = "header",
+            name = "General",
+        },
+        {
+            type = "description",
+            text = "Use |c00FF00/esotk help|r in chat for a list of commands.",
+        },
+        {
+            type = "checkbox",
+            name = "Verbose Chat Output",
+            tooltip = "Show informational messages in chat (warnings and errors are always shown).",
+            getFunc = function() return sv.verbose end,
+            setFunc = function(value) sv.verbose = value end,
+            default = true,
+            width = "full",
+        },
+
+        -- ---------------------------------------------------------------
+        -- Validation Overlay
         -- ---------------------------------------------------------------
         {
             type = "header",
