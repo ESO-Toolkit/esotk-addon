@@ -1,0 +1,27 @@
+name: Check base branch
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+
+jobs:
+  check-base-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify PR targets main (or has merge-into-parent label)
+        run: |
+          BASE="${{ github.event.pull_request.base.ref }}"
+          if [ "$BASE" = "main" ]; then
+            echo "✅ PR targets main — OK"
+            exit 0
+          fi
+
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS" | grep -q "merge-into-parent"; then
+            echo "✅ PR targets '$BASE' but has merge-into-parent label — OK"
+            exit 0
+          fi
+
+          echo "❌ PR targets '$BASE' instead of main."
+          echo "Add the 'merge-into-parent' label to allow merging into a non-main branch."
+          exit 1
