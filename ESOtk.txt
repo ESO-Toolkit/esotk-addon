@@ -5,6 +5,8 @@
 ## Description: Official ESOTK addon
 ## SavedVariables: ESOtk_SavedVars
 
+## OptionalDependsOn: LibAddonMenu-2.0
+
 ; Shared utilities (loaded first — no dependencies)
 Util.lua
 

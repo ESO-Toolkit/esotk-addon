@@ -21,6 +21,7 @@ local SAVED_VARS_VERSION = 2
 local DEFAULT_SAVED_VARS = {
     version = SAVED_VARS_VERSION,
     rosters = {},  -- roster storage for RosterImport (ESO-654)
+    verbose = true, -- show informational messages in chat
 }
 
 -- ---------------------------------------------------------------------------
@@ -65,6 +66,41 @@ local function OnSlashCommand(args)
 end
 
 -- ---------------------------------------------------------------------------
+-- Settings panel (LibAddonMenu-2.0)
+-- ---------------------------------------------------------------------------
+local function CreateSettingsPanel()
+    local LAM = LibAddonMenu2
+    if not LAM then return end
+
+    local panelData = {
+        type = "panel",
+        name = "ESOtk",
+        displayName = "ESOtk",
+        author = "ESO-Toolkit",
+        version = ADDON_VERSION,
+        website = "https://github.com/ESO-Toolkit/esotk-addon",
+        slashCommand = "/esotk",
+    }
+    LAM:RegisterAddonPanel(ADDON_NAME .. "_Options", panelData)
+
+    local optionsData = {
+        {
+            type = "description",
+            text = "Use |c00FF00/esotk help|r in chat for a list of commands.",
+        },
+        {
+            type = "checkbox",
+            name = "Verbose Chat Output",
+            tooltip = "Show informational messages in chat (warnings and errors are always shown).",
+            getFunc = function() return addon.savedVars.verbose end,
+            setFunc = function(value) addon.savedVars.verbose = value end,
+            default = DEFAULT_SAVED_VARS.verbose,
+        },
+    }
+    LAM:RegisterOptionControls(ADDON_NAME .. "_Options", optionsData)
+end
+
+-- ---------------------------------------------------------------------------
 -- Initialization
 -- ---------------------------------------------------------------------------
 local function OnAddonLoaded(event, addonName)
@@ -81,6 +117,9 @@ local function OnAddonLoaded(event, addonName)
 
     -- Register slash command
     SLASH_COMMANDS["/esotk"] = OnSlashCommand
+
+    -- Register settings panel (requires LibAddonMenu-2.0)
+    CreateSettingsPanel()
 
     addon.Util.Print("v" .. ADDON_VERSION .. " loaded. Type /esotk help for commands.")
 end
