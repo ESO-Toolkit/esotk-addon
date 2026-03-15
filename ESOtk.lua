@@ -31,7 +31,7 @@ function addon.PrintHelp()
     local Util = addon.Util
     Util.Print("v" .. ADDON_VERSION .. " — Available commands:")
     Util.Print("  /esotk group     — Print current group info")
-    Util.Print("  /esotk roster    — Roster import/management")
+    Util.Print("  /esotk roster    — Roster import/management (import, list, delete, clear)")
     Util.Print("  /esotk validate  — Run roster validation")
     Util.Print("  /esotk gear      — Print local player gear")
     Util.Print("  /esotk help      — Show this help message")
