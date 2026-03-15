@@ -9,3 +9,6 @@ Thumbs.db
 .vscode/
 *.swp
 .env
+
+# Scratch / ad-hoc output
+scratch/
