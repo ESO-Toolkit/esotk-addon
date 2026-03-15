@@ -7,8 +7,10 @@ ESOtk.Util = {}
 local Util = ESOtk.Util
 
 --- Print a message to chat with the addon prefix.
+--- Suppressed when verbose mode is off.
 --- @param msg string
 function Util.Print(msg)
+    if ESOtk.savedVars and not ESOtk.savedVars.verbose then return end
     d("[ESOtk] " .. tostring(msg))
 end
 
