@@ -30,7 +30,7 @@ if (-not (Test-Path $TargetDir)) {
     Write-Host "  Created $TargetDir"
 }
 
-$Files = Get-ChildItem -Path $SourceDir -File | Where-Object { $_.Extension -in '.lua', '.txt' }
+$Files = Get-ChildItem -Path $SourceDir -File | Where-Object { $_.Extension -in '.lua', '.txt', '.xml' }
 
 foreach ($File in $Files) {
     Copy-Item -Path $File.FullName -Destination $TargetDir -Force
