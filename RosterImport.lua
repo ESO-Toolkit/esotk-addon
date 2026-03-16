@@ -18,7 +18,10 @@ end
 --- @return table
 local function GetRosters()
     local sv = ESOtk.savedVars
-    if not sv.rosters then sv.rosters = {} end
+    -- Explicit write-back forces ZO_SavedVars to store the table via
+    -- __newindex.  Without this, sv.rosters returns the default {} through
+    -- the __index metatable and mutations to it are never persisted to disk.
+    sv.rosters = sv.rosters or {}
     return sv.rosters
 end
 
