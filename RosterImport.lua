@@ -111,11 +111,13 @@ function RosterImport.Import(data)
     end
 
     -- Store by roster name (overwrite if already exists)
-    local rosters = GetRosters()
+    local sv = ESOtk.savedVars
+    local rosters = sv.rosters or {}
     local name = roster.rosterName
     local isUpdate = rosters[name] ~= nil
     roster.importedAt = GetTimeStamp and GetTimeStamp() or os.time()
     rosters[name] = roster
+    sv.rosters = rosters  -- explicit write-back: ZO_SavedVars __newindex must fire to persist
 
     if isUpdate then
         Util.Print("Roster '" .. name .. "' updated.")
@@ -178,12 +180,14 @@ end
 --- @param name string  Roster name to delete
 function RosterImport.Delete(name)
     EnsureUtil()
-    local rosters = GetRosters()
+    local sv = ESOtk.savedVars
+    local rosters = sv.rosters or {}
     if not rosters[name] then
         Util.Error("Roster '" .. name .. "' not found.")
         return
     end
     rosters[name] = nil
+    sv.rosters = rosters  -- explicit write-back
     Util.Print("Roster '" .. name .. "' deleted.")
 end
 
