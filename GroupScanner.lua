@@ -42,7 +42,7 @@ end
 function GroupScanner.ScanMember(unitTag)
     if not DoesUnitExist(unitTag) then return nil end
 
-    local rawName     = GetRawUnitName(unitTag)
+    local rawName     = zo_strformat("<<1>>", GetRawUnitName(unitTag))
     local displayName = GetUnitDisplayName(unitTag)  -- @account
     local classId     = GetUnitClassId(unitTag)
     local level       = GetUnitLevel(unitTag)
