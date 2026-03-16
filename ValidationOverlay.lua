@@ -158,6 +158,7 @@ local function SlotIcon(sr)
 end
 
 --- Build a short detail string for a failing slot result.
+--- For missing slots, shows gear requirements if available.
 --- @param sr table
 --- @return string
 local function SlotDetail(sr)
@@ -166,7 +167,8 @@ local function SlotDetail(sr)
     for _, c in ipairs(sr.checks) do
         if not c.pass then
             if c.check == "presence" then
-                table.insert(parts, "missing")
+                -- Show gear requirements if available, otherwise just "missing"
+                table.insert(parts, sr.gearSummary or "missing")
             elseif c.check == "role" then
                 table.insert(parts, "role")
             elseif c.check == "class" then

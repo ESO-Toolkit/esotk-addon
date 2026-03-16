@@ -97,6 +97,25 @@ end
 -- Single-slot validation
 -- ---------------------------------------------------------------------------
 
+--- Build a brief comma-separated gear requirements string from a roster slot.
+--- Returns nil if no gear sets are specified.
+--- @param slotData table  Roster slot data
+--- @return string|nil
+local function GearSummary(slotData)
+    local gs = slotData.gearSets
+    if not gs then return nil end
+    local sets, seen = {}, {}
+    local function add(s)
+        if type(s) == "string" and s ~= "" then
+            local lower = s:lower()
+            if not seen[lower] then seen[lower] = true; table.insert(sets, s) end
+        end
+    end
+    add(gs.set1); add(gs.set2); add(gs.monsterSet)
+    for _, v in ipairs(gs) do add(v) end
+    return #sets > 0 and table.concat(sets, ", ") or nil
+end
+
 --- Validate a single roster slot against a pre-matched group member.
 --- @param slotKey string       Slot identifier (e.g. "tank1", "healer2")
 --- @param slotData table       Roster slot data (must have playerName)
@@ -109,6 +128,7 @@ local function ValidateSlot(slotKey, slotData, member, matchMethod)
         playerName  = slotData.playerName or "(unnamed)",
         matchedName = nil,  -- actual in-game name if matched
         matchMethod = matchMethod or "none",
+        gearSummary = GearSummary(slotData),  -- brief gear requirements for overlay display
         checks      = {},
         pass        = true,
     }
