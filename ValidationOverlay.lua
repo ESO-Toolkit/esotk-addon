@@ -51,6 +51,8 @@ local rows = {}       -- array of created row controls
 local isShowing = false
 local isLocked = false
 local eventRegistered = false
+local fragment = nil   -- ZO_HUDFadeSceneFragment for auto-hide during menus
+local pendingRefresh = nil  -- debounce handle for group-change events
 
 -- ---------------------------------------------------------------------------
 -- Row management
@@ -74,6 +76,13 @@ local function GetRow(index)
 
     -- Position: stack vertically
     row:SetAnchor(TOPLEFT, parent, TOPLEFT, 0, (index - 1) * ROW_HEIGHT)
+
+    -- Cache child control references to avoid repeated GetControl() lookups
+    row._status = GetControl(row:GetName() .. "Status")
+    row._slot   = GetControl(row:GetName() .. "Slot")
+    row._player = GetControl(row:GetName() .. "Player")
+    row._detail = GetControl(row:GetName() .. "Detail")
+
     rows[index] = row
     return row
 end
@@ -90,10 +99,16 @@ local function SetRowData(index, icon, iconColor, slotText, playerText, detailTe
     local row = GetRow(index)
     if not row then return end
 
-    local statusCtl = GetControl(row:GetName() .. "Status")
-    local slotCtl   = GetControl(row:GetName() .. "Slot")
-    local playerCtl = GetControl(row:GetName() .. "Player")
-    local detailCtl = GetControl(row:GetName() .. "Detail")
+    -- Strip emoji that ESO fonts can't render
+    if Util then
+        playerText = Util.StripEmoji(playerText)
+        detailText = Util.StripEmoji(detailText)
+    end
+
+    local statusCtl = row._status
+    local slotCtl   = row._slot
+    local playerCtl = row._player
+    local detailCtl = row._detail
 
     if statusCtl then
         statusCtl:SetText(icon or "")
@@ -143,6 +158,7 @@ local function SlotIcon(sr)
 end
 
 --- Build a short detail string for a failing slot result.
+--- For missing slots, shows gear requirements if available.
 --- @param sr table
 --- @return string
 local function SlotDetail(sr)
@@ -151,13 +167,16 @@ local function SlotDetail(sr)
     for _, c in ipairs(sr.checks) do
         if not c.pass then
             if c.check == "presence" then
-                table.insert(parts, "missing")
+                -- Show gear requirements if available, otherwise just "missing"
+                table.insert(parts, sr.gearSummary or "missing")
             elseif c.check == "role" then
                 table.insert(parts, "role")
             elseif c.check == "class" then
                 table.insert(parts, "class")
             elseif c.check == "online" then
                 table.insert(parts, "offline")
+            elseif c.check == "gear" then
+                table.insert(parts, "gear")
             end
         end
     end
@@ -215,7 +234,8 @@ function Overlay.Populate(result)
             end
             if onlySoft then detailColor = CLR.WARN end
         end
-        SetRowData(rowIndex, icon, iconColor, sr.slot, sr.playerName, detail, detailColor)
+        SetRowData(rowIndex, icon, iconColor, sr.slot,
+            sr.matchedName or sr.playerName, detail, detailColor)
     end
 
     -- Unassigned players
@@ -239,7 +259,6 @@ end
 function Overlay.Show()
     local control = GetControl(CONTROL_NAME)
     if not control then return end
-    control:SetHidden(false)
     isShowing = true
 
     -- Sync saved var
@@ -258,6 +277,13 @@ function Overlay.Show()
     end
     Overlay.ApplyLockState()
 
+    -- Add scene fragment so the overlay auto-hides during menus (ESC, etc.)
+    if not fragment then
+        fragment = ZO_HUDFadeSceneFragment:New(control)
+    end
+    HUD_SCENE:AddFragment(fragment)
+    HUD_UI_SCENE:AddFragment(fragment)
+
     -- If we have a last result, populate immediately
     EnsureModules()
     if RosterValidator and RosterValidator.lastResult then
@@ -272,22 +298,26 @@ function Overlay.Show()
         HideRowsFrom(1)
     end
 
-    Overlay.RegisterEvents()
+    Overlay.SyncAutoValidateEvents()
 end
 
 function Overlay.Hide()
-    local control = GetControl(CONTROL_NAME)
-    if not control then return end
-
     -- Save position before hiding
     Overlay.SavePosition()
 
-    control:SetHidden(true)
+    -- Remove scene fragment so the control is hidden in all scenes
+    if fragment then
+        HUD_SCENE:RemoveFragment(fragment)
+        HUD_UI_SCENE:RemoveFragment(fragment)
+    end
+
     isShowing = false
 
     -- Sync saved var
     local sv = ESOtk.savedVars
     if sv then sv.overlayVisible = false end
+
+    Overlay.SyncAutoValidateEvents()
 end
 
 function Overlay.Toggle()
@@ -346,8 +376,9 @@ function Overlay.SavePosition()
     local sv = ESOtk.savedVars
     if not sv then return end
 
-    local _, _, _, _, offsetX, offsetY = control:GetAnchor(0)
-    sv.overlayPos = { x = offsetX, y = offsetY }
+    -- Use absolute screen coordinates (GetLeft/GetTop) instead of anchor
+    -- offsets, which lose their values after the control is dragged.
+    sv.overlayPos = { x = control:GetLeft(), y = control:GetTop() }
 end
 
 --- Called when user stops dragging the overlay.
@@ -359,29 +390,67 @@ end
 -- Auto-refresh on group events
 -- ---------------------------------------------------------------------------
 
-local function OnGroupChanged()
-    if not isShowing then return end
+local function DoGroupRefresh()
     EnsureModules()
+    local sv = ESOtk.savedVars
 
-    -- Re-run validation silently and refresh overlay
+    -- Skip if overlay is not showing AND auto-validate is off
+    if not isShowing and not (sv and sv.autoValidate) then return end
+
+    local RosterImport = ESOtk.RosterImport
+    local GroupScanner = ESOtk.GroupScanner
+    if not RosterImport or not GroupScanner then return end
+
+    -- Determine which roster to validate
+    local rosterName
     if RosterValidator and RosterValidator.lastResult then
-        local lastRosterName = RosterValidator.lastResult.rosterName
-        if lastRosterName then
-            local RosterImport = ESOtk.RosterImport
-            local GroupScanner = ESOtk.GroupScanner
-            if RosterImport and GroupScanner then
-                local roster = RosterImport.Get(lastRosterName)
-                if roster then
-                    local members, groupSize = GroupScanner.ScanGroup()
-                    if groupSize > 0 then
-                        local result = RosterValidator.Validate(roster, members, groupSize)
-                        RosterValidator.lastResult = result
-                        Overlay.Populate(result)
-                    end
-                end
-            end
+        rosterName = RosterValidator.lastResult.rosterName
+    end
+
+    -- If no prior run but auto-validate is on, pick the sole roster
+    if not rosterName and sv and sv.autoValidate then
+        local all = RosterImport.GetAll()
+        local count = 0
+        local onlyName
+        for name, _ in pairs(all) do count = count + 1; onlyName = name end
+        if count == 1 then rosterName = onlyName end
+    end
+
+    if not rosterName then return end
+
+    local roster = RosterImport.Get(rosterName)
+    if not roster then return end
+
+    local members, groupSize = GroupScanner.ScanGroup()
+    if groupSize == 0 then return end
+
+    local result = RosterValidator.Validate(roster, members, groupSize)
+    RosterValidator.lastResult = result
+
+    -- Update overlay if visible
+    if isShowing then
+        Overlay.Populate(result)
+    end
+
+    -- Print summary to chat if auto-validate triggered this
+    if sv and sv.autoValidate and not isShowing then
+        local ValidationUI = ESOtk.ValidationUI
+        if ValidationUI and ValidationUI.DisplaySummary then
+            ValidationUI.DisplaySummary(result)
         end
     end
+end
+
+--- Callback for the debounce timer (pre-created to avoid closure allocation).
+local function DebouncedRefresh()
+    pendingRefresh = nil
+    DoGroupRefresh()
+end
+
+--- Debounced wrapper: coalesces rapid group events into a single refresh.
+local function OnGroupChanged()
+    if pendingRefresh then return end
+    pendingRefresh = zo_callLater(DebouncedRefresh, 500)
 end
 
 function Overlay.RegisterEvents()
@@ -392,6 +461,10 @@ function Overlay.RegisterEvents()
     EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_LEFT, OnGroupChanged)
     EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_ROLE_CHANGED, OnGroupChanged)
     EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_CONNECTED_STATUS, OnGroupChanged)
+
+    -- Re-validate when the local player equips or unequips gear
+    EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay_Gear", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnGroupChanged)
+    EVENT_MANAGER:AddFilterForEvent("ESOtk_Overlay_Gear", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, REGISTER_FILTER_BAG_ID, BAG_WORN)
 end
 
 function Overlay.UnregisterEvents()
@@ -402,6 +475,18 @@ function Overlay.UnregisterEvents()
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_LEFT)
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_ROLE_CHANGED)
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_CONNECTED_STATUS)
+    EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay_Gear", EVENT_INVENTORY_SINGLE_SLOT_UPDATE)
+end
+
+--- Sync event registration based on overlay visibility and auto-validate setting.
+--- Called when either changes.
+function Overlay.SyncAutoValidateEvents()
+    local sv = ESOtk.savedVars
+    if isShowing or (sv and sv.autoValidate) then
+        Overlay.RegisterEvents()
+    else
+        Overlay.UnregisterEvents()
+    end
 end
 
 -- ---------------------------------------------------------------------------

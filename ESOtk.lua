@@ -22,9 +22,13 @@ local DEFAULT_SAVED_VARS = {
     version = SAVED_VARS_VERSION,
     rosters = {},           -- roster storage for RosterImport (ESO-654)
     verbose = true,         -- show informational messages in chat
+    autoValidate = false,   -- auto-run validation on group changes
+    matchByRole = true,     -- fallback: match unassigned players by role
+    slotMappings = {},      -- explicit slot->player maps per roster { [rosterName] = { [slot] = "@account" } }
     overlayPos = nil,       -- { x, y } saved position for ValidationOverlay (ESO-660)
     overlayVisible = false, -- whether overlay is shown on load (ESO-660)
     overlayLocked = false,  -- whether overlay position is locked (ESO-660)
+    lastRosterInput = "",  -- last pasted roster string (repopulates import editbox after reload)
 }
 
 -- ---------------------------------------------------------------------------
@@ -36,6 +40,7 @@ function addon.PrintHelp()
     Util.Print("  /esotk group     — Print current group info")
     Util.Print("  /esotk roster    — Roster import/management (import, list, delete, clear)")
     Util.Print("  /esotk validate  — Run roster validation")
+    Util.Print("  /esotk map       — Map roster slots to players explicitly")
     Util.Print("  /esotk gear      — Print local player gear (add roster name to validate)")
     Util.Print("  /esotk ui        — Toggle validation overlay (show/hide/lock/unlock/refresh)")
     Util.Print("  /esotk settings  — Open settings panel (requires LibAddonMenu-2.0)")
@@ -60,6 +65,8 @@ local function OnSlashCommand(args)
         addon.RosterImport.HandleCommand(rest)
     elseif command == "validate" then
         addon.RosterValidator.HandleCommand(rest)
+    elseif command == "map" then
+        addon.RosterValidator.HandleMapCommand(rest)
     elseif command == "gear" then
         if rest and rest ~= "" then
             addon.GearScanner.PrintGearValidation(rest)
@@ -74,41 +81,6 @@ local function OnSlashCommand(args)
         addon.Util.Warn("Unknown command: " .. command)
         addon.PrintHelp()
     end
-end
-
--- ---------------------------------------------------------------------------
--- Settings panel (LibAddonMenu-2.0)
--- ---------------------------------------------------------------------------
-local function CreateSettingsPanel()
-    local LAM = LibAddonMenu2
-    if not LAM then return end
-
-    local panelData = {
-        type = "panel",
-        name = "ESOtk",
-        displayName = "ESOtk",
-        author = "ESO-Toolkit",
-        version = ADDON_VERSION,
-        website = "https://github.com/ESO-Toolkit/esotk-addon",
-        slashCommand = "/esotk",
-    }
-    LAM:RegisterAddonPanel(ADDON_NAME .. "_Options", panelData)
-
-    local optionsData = {
-        {
-            type = "description",
-            text = "Use |c00FF00/esotk help|r in chat for a list of commands.",
-        },
-        {
-            type = "checkbox",
-            name = "Verbose Chat Output",
-            tooltip = "Show informational messages in chat (warnings and errors are always shown).",
-            getFunc = function() return addon.savedVars.verbose end,
-            setFunc = function(value) addon.savedVars.verbose = value end,
-            default = DEFAULT_SAVED_VARS.verbose,
-        },
-    }
-    LAM:RegisterOptionControls(ADDON_NAME .. "_Options", optionsData)
 end
 
 -- ---------------------------------------------------------------------------
@@ -129,9 +101,6 @@ local function OnAddonLoaded(event, addonName)
     -- Register slash command
     SLASH_COMMANDS["/esotk"] = OnSlashCommand
 
-    -- Register settings panel (requires LibAddonMenu-2.0)
-    CreateSettingsPanel()
-
     -- Hook overlay drag-stop for position persistence
     local overlayCtl = GetControl("ESOtk_ValidationOverlay")
     if overlayCtl then
@@ -142,6 +111,14 @@ local function OnAddonLoaded(event, addonName)
     if addon.savedVars.overlayVisible then
         addon.ValidationOverlay.Show()
     end
+
+    -- Enable auto-validate events if the setting is on (even without overlay)
+    addon.ValidationOverlay.SyncAutoValidateEvents()
+
+    -- Save overlay position on logout/reload (belt-and-suspenders for crashes)
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PLAYER_DEACTIVATED, function()
+        addon.ValidationOverlay.SavePosition()
+    end)
 
     -- Register settings panel (requires LibAddonMenu-2.0)
     addon.Settings.Init()

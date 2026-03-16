@@ -42,7 +42,7 @@ end
 function GroupScanner.ScanMember(unitTag)
     if not DoesUnitExist(unitTag) then return nil end
 
-    local rawName     = GetRawUnitName(unitTag)
+    local rawName     = zo_strformat("<<1>>", GetRawUnitName(unitTag))
     local displayName = GetUnitDisplayName(unitTag)  -- @account
     local classId     = GetUnitClassId(unitTag)
     local level       = GetUnitLevel(unitTag)
@@ -92,9 +92,10 @@ end
 
 --- Find a group member by @account name (case-insensitive).
 --- @param accountName string  e.g. "@PlayerName"
+--- @param existingMembers table|nil  Optional pre-scanned members array
 --- @return table|nil  member data or nil
-function GroupScanner.FindByAccount(accountName)
-    local members = GroupScanner.ScanGroup()
+function GroupScanner.FindByAccount(accountName, existingMembers)
+    local members = existingMembers or GroupScanner.ScanGroup()
     local target = accountName:lower()
     for _, m in ipairs(members) do
         if m.displayName:lower() == target then
@@ -106,9 +107,10 @@ end
 
 --- Find a group member by character name (case-insensitive).
 --- @param characterName string
+--- @param existingMembers table|nil  Optional pre-scanned members array
 --- @return table|nil  member data or nil
-function GroupScanner.FindByCharacter(characterName)
-    local members = GroupScanner.ScanGroup()
+function GroupScanner.FindByCharacter(characterName, existingMembers)
+    local members = existingMembers or GroupScanner.ScanGroup()
     local target = characterName:lower()
     for _, m in ipairs(members) do
         if m.rawName:lower() == target then

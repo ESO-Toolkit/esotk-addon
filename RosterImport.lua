@@ -15,11 +15,20 @@ local function EnsureUtil()
 end
 
 --- Return the rosters table from SavedVariables (creates if missing).
+--- Explicit write-back forces ZO_SavedVars to store the table via __newindex.
+--- Without this, sv.rosters returns the default {} through the __index
+--- metatable and mutations to it are never persisted to disk.
+--- Note: rawget() cannot be used here because ZO_SavedVars stores data in a
+--- backing table, not on the proxy object itself.
 --- @return table
 local function GetRosters()
     local sv = ESOtk.savedVars
-    if not sv.rosters then sv.rosters = {} end
-    return sv.rosters
+    local r = sv.rosters
+    if not r then
+        r = {}
+        sv.rosters = r
+    end
+    return r
 end
 
 -- ---------------------------------------------------------------------------
@@ -106,16 +115,40 @@ function RosterImport.Import(data)
     end
 
     -- Store by roster name (overwrite if already exists)
-    local rosters = GetRosters()
+    local sv = ESOtk.savedVars
+    local rosters = sv.rosters or {}
     local name = roster.rosterName
     local isUpdate = rosters[name] ~= nil
     roster.importedAt = GetTimeStamp and GetTimeStamp() or os.time()
     rosters[name] = roster
+    sv.rosters = rosters  -- explicit write-back: ZO_SavedVars __newindex must fire to persist
 
     if isUpdate then
         Util.Print("Roster '" .. name .. "' updated.")
     else
         Util.Print("Roster '" .. name .. "' imported successfully.")
+    end
+
+    -- Auto-validate immediately if the setting is on and we're in a group
+    if sv and sv.autoValidate then
+        local GroupScanner   = ESOtk.GroupScanner
+        local RosterValidator = ESOtk.RosterValidator
+        local Overlay         = ESOtk.ValidationOverlay
+        if GroupScanner and RosterValidator then
+            local members, groupSize = GroupScanner.ScanGroup()
+            if groupSize > 0 then
+                local result = RosterValidator.Validate(roster, members, groupSize)
+                RosterValidator.lastResult = result
+                if Overlay and Overlay.IsShowing and Overlay.IsShowing() then
+                    Overlay.Populate(result)
+                else
+                    local ValidationUI = ESOtk.ValidationUI
+                    if ValidationUI and ValidationUI.DisplaySummary then
+                        ValidationUI.DisplaySummary(result)
+                    end
+                end
+            end
+        end
     end
 end
 
@@ -150,12 +183,14 @@ end
 --- @param name string  Roster name to delete
 function RosterImport.Delete(name)
     EnsureUtil()
-    local rosters = GetRosters()
+    local sv = ESOtk.savedVars
+    local rosters = sv.rosters or {}
     if not rosters[name] then
         Util.Error("Roster '" .. name .. "' not found.")
         return
     end
     rosters[name] = nil
+    sv.rosters = rosters  -- explicit write-back
     Util.Print("Roster '" .. name .. "' deleted.")
 end
 

@@ -36,7 +36,108 @@ function Settings.Init()
     -- Options controls
     local optionsTable = {
         -- ---------------------------------------------------------------
-        -- Overlay header
+        -- General
+        -- ---------------------------------------------------------------
+        {
+            type = "header",
+            name = "General",
+        },
+        {
+            type = "description",
+            text = "Use |c00FF00/esotk help|r in chat for a list of commands.",
+        },
+        {
+            type = "checkbox",
+            name = "Verbose Chat Output",
+            tooltip = "Show informational messages in chat (warnings and errors are always shown).",
+            getFunc = function() return sv.verbose end,
+            setFunc = function(value) sv.verbose = value end,
+            default = true,
+            width = "full",
+        },
+
+        -- ---------------------------------------------------------------
+        -- Validation
+        -- ---------------------------------------------------------------
+        {
+            type = "header",
+            name = "Validation",
+        },
+        {
+            type = "checkbox",
+            name = "Auto-Validate on Group Change",
+            tooltip = "Automatically re-run roster validation when group members join, leave, change role, or go online/offline. "
+                .. "Requires at least one roster to be imported. Results are shown in the overlay (if visible) and printed to chat.",
+            getFunc = function() return sv.autoValidate end,
+            setFunc = function(value)
+                sv.autoValidate = value
+                ESOtk.ValidationOverlay.SyncAutoValidateEvents()
+            end,
+            default = false,
+            width = "full",
+        },
+        {
+            type = "checkbox",
+            name = "Match Unassigned Players by Role",
+            tooltip = "When a roster slot can't be matched by player name, automatically match "
+                .. "unassigned group members by their current role (Tank/Healer/DPS). "
+                .. "Disable to require exact name or explicit /esotk map assignments only.",
+            getFunc = function() return sv.matchByRole ~= false end,
+            setFunc = function(value) sv.matchByRole = value end,
+            default = true,
+            width = "full",
+        },
+        {
+            type = "description",
+            text = "Use |c00FF00/esotk map|r to explicitly assign players to slots:\n"
+                .. "  |cFFFF00/esotk map tank1 @AccountName|r — Map a slot\n"
+                .. "  |cFFFF00/esotk map list|r — Show mappings\n"
+                .. "  |cFFFF00/esotk map clear|r — Clear all mappings\n"
+                .. "Explicit mappings take priority over name and role matching.",
+        },
+
+        -- ---------------------------------------------------------------
+        -- Roster Import
+        -- ---------------------------------------------------------------
+        {
+            type = "header",
+            name = "Roster Import",
+        },
+        {
+            type = "description",
+            text = "Paste a Base64-encoded roster string from the web UI, then click Import.",
+        },
+        {
+            type = "editbox",
+            name = "Roster Data",
+            tooltip = "Paste the Base64-encoded roster string here.",
+            isMultiline = true,
+            isExtraWide = true,
+            getFunc = function() return sv.lastRosterInput or "" end,
+            setFunc = function(value)
+                Settings._pendingRoster = value
+                sv.lastRosterInput = value
+            end,
+            default = "",
+            width = "full",
+        },
+        {
+            type = "button",
+            name = "Import Roster",
+            tooltip = "Decode and import the roster data above.",
+            func = function()
+                local data = Settings._pendingRoster or sv.lastRosterInput
+                if not data or data == "" then
+                    ESOtk.Util.Error("Paste roster data into the editbox first.")
+                    return
+                end
+                ESOtk.RosterImport.Import(data)
+            end,
+            width = "full",
+        },
+
+        -- ---------------------------------------------------------------
+        -- Validation Overlay
         -- ---------------------------------------------------------------
         {
             type = "header",
