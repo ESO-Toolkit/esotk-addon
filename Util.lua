@@ -231,26 +231,48 @@ function Util.ShallowCopy(t)
 end
 
 --- Strip characters that ESO fonts cannot render.
---- ESO Lua is based on Lua 5.1 which does NOT support \xNN hex escapes,
---- so all byte ranges use decimal \NNN notation.
---- ESO fonts reliably render ASCII + Latin-1 Supplement + Latin Extended-A
---- (2-byte UTF-8 with lead bytes C2-C5 / 194-197: é ñ ü ą ę ő ş etc.).
---- Everything else (Cyrillic, Arabic, CJK, emoji, etc.) renders as boxes.
+--- Uses a byte-by-byte iterator to avoid Lua 5.1 pattern matching
+--- issues with character ranges for bytes above 127.
+--- Keeps ASCII printable (bytes 32-126) and Latin Extended A/B
+--- (2-byte UTF-8 with lead bytes C2-C5: é ñ ü ą ę ő ş etc.).
+--- Everything else (Cyrillic, Arabic, CJK, emoji, etc.) is dropped.
 --- @param s string
 --- @return string
 function Util.StripEmoji(s)
     if not s then return "" end
-    -- Remove 4-byte UTF-8 sequences (U+10000+): F0-F4 + 3 continuation bytes
-    s = s:gsub("[\240-\244][\128-\191][\128-\191][\128-\191]", "")
-    -- Remove 3-byte UTF-8 sequences (U+0800-U+FFFF): E0-EF + 2 continuation bytes
-    s = s:gsub("[\224-\239][\128-\191][\128-\191]", "")
-    -- Remove 2-byte UTF-8 sequences outside Latin range (Cyrillic, Arabic, etc.)
-    -- Keep C2-C5 (194-197): Latin-1 Supplement + Latin Extended-A
-    -- Strip C6-DF (198-223): IPA, Greek, Cyrillic, Armenian, Hebrew, Arabic, etc.
-    s = s:gsub("[\198-\223][\128-\191]", "")
-    -- Remove orphaned continuation bytes that lost their leading byte
-    s = s:gsub("[\128-\191]+", "")
-    -- Collapse multiple spaces into one, trim
+    local out = {}
+    local i = 1
+    local len = #s
+    while i <= len do
+        local b = s:byte(i)
+        if b < 128 then
+            -- ASCII (0-127): always keep
+            out[#out + 1] = s:sub(i, i)
+            i = i + 1
+        elseif b >= 194 and b <= 197 then
+            -- C2-C5: Latin-1 Supplement + Latin Extended-A (safe accented chars)
+            if i + 1 <= len then
+                local b2 = s:byte(i + 1)
+                if b2 >= 128 and b2 <= 191 then
+                    out[#out + 1] = s:sub(i, i + 1)
+                    i = i + 2
+                else
+                    i = i + 1  -- malformed, skip lead byte
+                end
+            else
+                i = i + 1
+            end
+        elseif b >= 240 then
+            i = i + 4  -- 4-byte sequence: skip
+        elseif b >= 224 then
+            i = i + 3  -- 3-byte sequence: skip
+        elseif b >= 192 then
+            i = i + 2  -- other 2-byte sequence: skip
+        else
+            i = i + 1  -- orphaned continuation byte (128-191): skip
+        end
+    end
+    s = table.concat(out)
     s = s:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
     return s
 end
