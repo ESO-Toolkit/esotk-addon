@@ -49,58 +49,96 @@ end
 --- Matches against character name first, then @account name (case-insensitive).
 --- @param playerName string  Name from the roster slot
 --- @param members table      Array of GroupScanner member data
+--- @param matchedTags table  Set of unitTags already matched (skip these)
 --- @return table|nil         Matched member, or nil
-local function FindMember(playerName, members)
+local function FindMember(playerName, members, matchedTags)
     if not playerName or playerName == "" then return nil end
     local target = playerName:lower()
     for _, m in ipairs(members) do
-        if m.rawName:lower() == target then return m end
+        if not matchedTags[m.unitTag] and m.rawName:lower() == target then return m end
     end
     for _, m in ipairs(members) do
-        if m.displayName:lower() == target then return m end
+        if not matchedTags[m.unitTag] and m.displayName:lower() == target then return m end
     end
     return nil
+end
+
+--- Find a group member by @account display name (case-insensitive).
+--- @param displayName string  @account name
+--- @param members table       Array of GroupScanner member data
+--- @param matchedTags table   Set of unitTags already matched (skip these)
+--- @return table|nil
+local function FindMemberByDisplayName(displayName, members, matchedTags)
+    if not displayName or displayName == "" then return nil end
+    local target = displayName:lower()
+    for _, m in ipairs(members) do
+        if not matchedTags[m.unitTag] and m.displayName:lower() == target then return m end
+    end
+    return nil
+end
+
+--- Find the first unmatched group member with the given role.
+--- @param role string         Expected role ("Tank", "Healer", "DPS")
+--- @param members table       Array of GroupScanner member data
+--- @param matchedTags table   Set of unitTags already matched (skip these)
+--- @return table|nil
+local function FindMemberByRole(role, members, matchedTags)
+    for _, m in ipairs(members) do
+        if not matchedTags[m.unitTag] and m.role == role then return m end
+    end
+    return nil
+end
+
+--- Get explicit slot mappings for a roster from savedVars.
+--- @param rosterName string
+--- @return table|nil   { slotKey = "@account", ... }
+local function GetSlotMappings(rosterName)
+    local sv = ESOtk.savedVars
+    if not sv or not sv.slotMappings then return nil end
+    return sv.slotMappings[rosterName]
 end
 
 -- ---------------------------------------------------------------------------
 -- Single-slot validation
 -- ---------------------------------------------------------------------------
 
---- Validate a single roster slot against the group.
+--- Validate a single roster slot against a pre-matched group member.
 --- @param slotKey string       Slot identifier (e.g. "tank1", "healer2")
 --- @param slotData table       Roster slot data (must have playerName)
---- @param members table        Array of GroupScanner member data
---- @param matchedTags table    Set of unitTags already matched (mutated)
+--- @param member table|nil     Matched group member, or nil if unmatched
+--- @param matchMethod string   How the member was matched ("map", "name", "role", or "none")
 --- @return table               Slot validation result
-local function ValidateSlot(slotKey, slotData, members, matchedTags)
+local function ValidateSlot(slotKey, slotData, member, matchMethod)
     local result = {
-        slot       = slotKey,
-        playerName = slotData.playerName or "(unnamed)",
-        checks     = {},  -- array of { check, pass, detail }
-        pass       = true,
+        slot        = slotKey,
+        playerName  = slotData.playerName or "(unnamed)",
+        matchedName = nil,  -- actual in-game name if matched
+        matchMethod = matchMethod or "none",
+        checks      = {},
+        pass        = true,
     }
 
     local expectedRole = InferRole(slotKey)
 
     -- 1. Player Presence
-    local member = FindMember(slotData.playerName, members)
     if not member then
         result.pass = false
         table.insert(result.checks, {
             check  = "presence",
             pass   = false,
-            detail = slotData.playerName .. " is not in the group",
+            detail = (slotData.playerName or "?") .. " is not in the group",
         })
-        return result  -- can't check further without a match
+        return result
     end
 
-    -- Mark this member as matched
-    matchedTags[member.unitTag] = true
+    -- Store matched player's actual name for overlay display
+    result.matchedName = member.rawName .. " (" .. member.displayName .. ")"
 
     table.insert(result.checks, {
         check  = "presence",
         pass   = true,
-        detail = member.rawName .. " (" .. member.displayName .. ") found",
+        detail = member.rawName .. " (" .. member.displayName .. ") found"
+            .. (matchMethod ~= "name" and " [" .. matchMethod .. "]" or ""),
     })
 
     -- 2. Role Match
@@ -119,7 +157,7 @@ local function ValidateSlot(slotKey, slotData, members, matchedTags)
         })
     end
 
-    -- 3. Class Match (if roster specifies expected class via skillLines)
+    -- 3. Class Match (if roster specifies expected class)
     if slotData.className then
         if member.className ~= slotData.className then
             result.pass = false
@@ -186,6 +224,10 @@ local function CollectSlots(roster)
 end
 
 --- Run validation of a roster against the current group.
+--- Uses three-pass matching:
+---   1. Explicit slot mappings (from /esotk map)
+---   2. Name matching (roster playerName vs character/account name)
+---   3. Role-based fallback (match unassigned members by role)
 --- @param roster table    Roster data from RosterImport
 --- @param members table   Array of GroupScanner member data
 --- @param groupSize number
@@ -208,9 +250,59 @@ function RosterValidator.Validate(roster, members, groupSize)
     local slots = CollectSlots(roster)
     result.totalSlots = #slots
 
-    -- Validate each roster slot
+    -- Build slotKey → member mapping via three-pass matching
+    local slotMembers = {}   -- slotKey → member
+    local slotMethods = {}   -- slotKey → "map" | "name" | "role"
+    local slotMappings = GetSlotMappings(roster.rosterName)
+
+    -- Pass 1: Explicit slot mappings (/esotk map <slot> <@account>)
+    if slotMappings then
+        for _, slot in ipairs(slots) do
+            local mapped = slotMappings[slot.key]
+            if mapped then
+                local m = FindMemberByDisplayName(mapped, members, matchedTags)
+                if m then
+                    slotMembers[slot.key] = m
+                    slotMethods[slot.key] = "map"
+                    matchedTags[m.unitTag] = true
+                end
+            end
+        end
+    end
+
+    -- Pass 2: Name matching (roster playerName vs character/account name)
     for _, slot in ipairs(slots) do
-        local slotResult = ValidateSlot(slot.key, slot.data, members, matchedTags)
+        if not slotMembers[slot.key] then
+            local m = FindMember(slot.data.playerName, members, matchedTags)
+            if m then
+                slotMembers[slot.key] = m
+                slotMethods[slot.key] = "name"
+                matchedTags[m.unitTag] = true
+            end
+        end
+    end
+
+    -- Pass 3: Role-based fallback (match unassigned players by role)
+    local sv = ESOtk.savedVars
+    if not sv or sv.matchByRole ~= false then  -- default: on
+        for _, slot in ipairs(slots) do
+            if not slotMembers[slot.key] then
+                local expectedRole = InferRole(slot.key)
+                local m = FindMemberByRole(expectedRole, members, matchedTags)
+                if m then
+                    slotMembers[slot.key] = m
+                    slotMethods[slot.key] = "role"
+                    matchedTags[m.unitTag] = true
+                end
+            end
+        end
+    end
+
+    -- Validate each slot with its matched (or unmatched) member
+    for _, slot in ipairs(slots) do
+        local member = slotMembers[slot.key]
+        local method = slotMethods[slot.key] or "none"
+        local slotResult = ValidateSlot(slot.key, slot.data, member, method)
         table.insert(result.slotResults, slotResult)
 
         if slotResult.pass then
@@ -388,5 +480,113 @@ function RosterValidator.HandleCommand(args)
         Util.Print("Validate commands:")
         Util.Print("  run [roster_name]  — Validate group against a roster")
         Util.Print("  status             — Show last validation result")
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- Explicit slot mapping (/esotk map)
+-- ---------------------------------------------------------------------------
+
+--- Resolve which roster to use for mapping.
+--- Uses the last validated roster or the sole stored roster.
+--- @return string|nil  Roster name, or nil with error printed
+local function ResolveRosterForMapping()
+    EnsureModules()
+
+    -- Prefer the last validated roster
+    if RosterValidator.lastResult then
+        return RosterValidator.lastResult.rosterName
+    end
+
+    -- Fall back to sole stored roster
+    local all = RosterImport.GetAll()
+    local count = 0
+    local onlyName
+    for name, _ in pairs(all) do count = count + 1; onlyName = name end
+    if count == 1 then return onlyName end
+    if count == 0 then
+        Util.Error("No rosters stored. Import one first.")
+    else
+        Util.Error("Multiple rosters stored; run validation first to select one.")
+    end
+    return nil
+end
+
+local VALID_SLOT_KEYS = {
+    tank1 = true, tank2 = true,
+    healer1 = true, healer2 = true,
+    dps1 = true, dps2 = true, dps3 = true, dps4 = true,
+    dps5 = true, dps6 = true, dps7 = true, dps8 = true,
+}
+
+--- Handle /esotk map <subcommand> commands.
+--- @param args string  Remaining arguments after "map"
+function RosterValidator.HandleMapCommand(args)
+    EnsureModules()
+
+    local subcommand = args and args:match("^(%S+)") or ""
+    subcommand = subcommand:lower()
+    local rest = args and args:match("^%S+%s*(.*)$") or ""
+
+    local sv = ESOtk.savedVars
+    -- Force write-back for ZO_SavedVars persistence
+    sv.slotMappings = sv.slotMappings or {}
+
+    if subcommand == "list" then
+        local rosterName = ResolveRosterForMapping()
+        if not rosterName then return end
+        local mappings = sv.slotMappings[rosterName]
+        if not mappings or Util.IsEmpty(mappings) then
+            Util.Print("No slot mappings for roster '" .. rosterName .. "'.")
+            return
+        end
+        Util.Print("Slot mappings for '" .. rosterName .. "':")
+        for slot, account in pairs(mappings) do
+            Util.Print("  " .. slot .. " → " .. account)
+        end
+
+    elseif subcommand == "clear" then
+        local rosterName = ResolveRosterForMapping()
+        if not rosterName then return end
+        sv.slotMappings[rosterName] = nil
+        Util.Print("Cleared all slot mappings for '" .. rosterName .. "'.")
+
+    elseif VALID_SLOT_KEYS[subcommand] then
+        -- /esotk map <slot> <@account|clear>
+        local slotKey = subcommand
+        local account = Util.Trim(rest)
+        local rosterName = ResolveRosterForMapping()
+        if not rosterName then return end
+
+        if account == "" then
+            Util.Error("Usage: /esotk map " .. slotKey .. " @AccountName")
+            return
+        end
+
+        if account:lower() == "clear" then
+            -- Clear a single slot mapping
+            if sv.slotMappings[rosterName] then
+                sv.slotMappings[rosterName][slotKey] = nil
+            end
+            Util.Print("Cleared mapping for " .. slotKey .. " in '" .. rosterName .. "'.")
+            return
+        end
+
+        -- Ensure @prefix
+        if account:sub(1, 1) ~= "@" then
+            account = "@" .. account
+        end
+
+        sv.slotMappings[rosterName] = sv.slotMappings[rosterName] or {}
+        sv.slotMappings[rosterName][slotKey] = account
+        Util.Print("Mapped " .. slotKey .. " → " .. account .. " for '" .. rosterName .. "'.")
+
+    else
+        Util.Print("Map commands — explicitly assign players to roster slots:")
+        Util.Print("  /esotk map <slot> @AccountName  — Map a slot to a player")
+        Util.Print("  /esotk map <slot> clear         — Clear a single mapping")
+        Util.Print("  /esotk map list                 — Show current mappings")
+        Util.Print("  /esotk map clear                — Clear all mappings")
+        Util.Print("Slots: tank1, tank2, healer1, healer2, dps1–dps8")
     end
 end

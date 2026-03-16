@@ -23,6 +23,8 @@ local DEFAULT_SAVED_VARS = {
     rosters = {},           -- roster storage for RosterImport (ESO-654)
     verbose = true,         -- show informational messages in chat
     autoValidate = false,   -- auto-run validation on group changes
+    matchByRole = true,     -- fallback: match unassigned players by role
+    slotMappings = {},      -- explicit slot->player maps per roster { [rosterName] = { [slot] = "@account" } }
     overlayPos = nil,       -- { x, y } saved position for ValidationOverlay (ESO-660)
     overlayVisible = false, -- whether overlay is shown on load (ESO-660)
     overlayLocked = false,  -- whether overlay position is locked (ESO-660)
@@ -37,6 +39,7 @@ function addon.PrintHelp()
     Util.Print("  /esotk group     — Print current group info")
     Util.Print("  /esotk roster    — Roster import/management (import, list, delete, clear)")
     Util.Print("  /esotk validate  — Run roster validation")
+    Util.Print("  /esotk map       — Map roster slots to players explicitly")
     Util.Print("  /esotk gear      — Print local player gear (add roster name to validate)")
     Util.Print("  /esotk ui        — Toggle validation overlay (show/hide/lock/unlock/refresh)")
     Util.Print("  /esotk settings  — Open settings panel (requires LibAddonMenu-2.0)")
@@ -61,6 +64,8 @@ local function OnSlashCommand(args)
         addon.RosterImport.HandleCommand(rest)
     elseif command == "validate" then
         addon.RosterValidator.HandleCommand(rest)
+    elseif command == "map" then
+        addon.RosterValidator.HandleMapCommand(rest)
     elseif command == "gear" then
         if rest and rest ~= "" then
             addon.GearScanner.PrintGearValidation(rest)

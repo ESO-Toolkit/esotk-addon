@@ -225,19 +225,18 @@ function Util.ShallowCopy(t)
 end
 
 --- Strip emoji and non-ASCII symbols from a string.
---- ESO fonts cannot render emoji; they appear as boxes.
---- Removes 4-byte UTF-8 sequences (emoji U+10000+) and common 3-byte
---- symbol/emoji sequences (U+2000–U+3FFF), then collapses extra whitespace.
+--- ESO fonts support ASCII and 2-byte Latin Extended (accented chars like ñ, ü).
+--- All 3-byte (U+0800+) and 4-byte (U+10000+) sequences render as boxes.
 --- @param s string
 --- @return string
 function Util.StripEmoji(s)
     if not s then return "" end
     -- Remove 4-byte UTF-8 sequences (U+10000+): F0-F4 followed by 3 continuation bytes
     s = s:gsub("[\xF0-\xF4][\x80-\xBF][\x80-\xBF][\x80-\xBF]", "")
-    -- Remove 3-byte sequences for common symbol/emoji blocks (U+2000-U+3FFF): E2/E3
-    s = s:gsub("[\xE2-\xE3][\x80-\xBF][\x80-\xBF]", "")
-    -- Remove variation selectors and zero-width joiners (U+FE00-U+FEFF): EF B8 80-BF, EF BB BF
-    s = s:gsub("\xEF[\xB8-\xBF][\x80-\xBF]", "")
+    -- Remove ALL 3-byte UTF-8 sequences (U+0800-U+FFFF): E0-EF followed by 2 continuation bytes
+    s = s:gsub("[\xE0-\xEF][\x80-\xBF][\x80-\xBF]", "")
+    -- Remove orphaned continuation bytes that lost their leading byte
+    s = s:gsub("[\x80-\xBF]+", "")
     -- Collapse multiple spaces into one, trim
     s = s:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
     return s

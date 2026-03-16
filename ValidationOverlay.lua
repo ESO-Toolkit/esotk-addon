@@ -222,7 +222,8 @@ function Overlay.Populate(result)
             end
             if onlySoft then detailColor = CLR.WARN end
         end
-        SetRowData(rowIndex, icon, iconColor, sr.slot, sr.playerName, detail, detailColor)
+        SetRowData(rowIndex, icon, iconColor, sr.slot,
+            sr.matchedName or sr.playerName, detail, detailColor)
     end
 
     -- Unassigned players
