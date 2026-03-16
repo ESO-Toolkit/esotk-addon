@@ -226,7 +226,7 @@ function GearScanner.PrintGearValidation(rosterName)
     end
 
     -- Find the local player's slot in the roster
-    local playerName = GetRawUnitName("player")
+    local playerName = zo_strformat("<<1>>", GetRawUnitName("player"))
     local displayName = GetUnitDisplayName("player")
     local mySlot = nil
     local mySlotKey = nil
