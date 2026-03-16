@@ -272,7 +272,7 @@ function Overlay.Show()
         HideRowsFrom(1)
     end
 
-    Overlay.RegisterEvents()
+    Overlay.SyncAutoValidateEvents()
 end
 
 function Overlay.Hide()
@@ -288,6 +288,8 @@ function Overlay.Hide()
     -- Sync saved var
     local sv = ESOtk.savedVars
     if sv then sv.overlayVisible = false end
+
+    Overlay.SyncAutoValidateEvents()
 end
 
 function Overlay.Toggle()
@@ -360,26 +362,52 @@ end
 -- ---------------------------------------------------------------------------
 
 local function OnGroupChanged()
-    if not isShowing then return end
     EnsureModules()
+    local sv = ESOtk.savedVars
 
-    -- Re-run validation silently and refresh overlay
+    -- Skip if overlay is not showing AND auto-validate is off
+    if not isShowing and not (sv and sv.autoValidate) then return end
+
+    local RosterImport = ESOtk.RosterImport
+    local GroupScanner = ESOtk.GroupScanner
+    if not RosterImport or not GroupScanner then return end
+
+    -- Determine which roster to validate
+    local rosterName
     if RosterValidator and RosterValidator.lastResult then
-        local lastRosterName = RosterValidator.lastResult.rosterName
-        if lastRosterName then
-            local RosterImport = ESOtk.RosterImport
-            local GroupScanner = ESOtk.GroupScanner
-            if RosterImport and GroupScanner then
-                local roster = RosterImport.Get(lastRosterName)
-                if roster then
-                    local members, groupSize = GroupScanner.ScanGroup()
-                    if groupSize > 0 then
-                        local result = RosterValidator.Validate(roster, members, groupSize)
-                        RosterValidator.lastResult = result
-                        Overlay.Populate(result)
-                    end
-                end
-            end
+        rosterName = RosterValidator.lastResult.rosterName
+    end
+
+    -- If no prior run but auto-validate is on, pick the sole roster
+    if not rosterName and sv and sv.autoValidate then
+        local all = RosterImport.GetAll()
+        local count = 0
+        local onlyName
+        for name, _ in pairs(all) do count = count + 1; onlyName = name end
+        if count == 1 then rosterName = onlyName end
+    end
+
+    if not rosterName then return end
+
+    local roster = RosterImport.Get(rosterName)
+    if not roster then return end
+
+    local members, groupSize = GroupScanner.ScanGroup()
+    if groupSize == 0 then return end
+
+    local result = RosterValidator.Validate(roster, members, groupSize)
+    RosterValidator.lastResult = result
+
+    -- Update overlay if visible
+    if isShowing then
+        Overlay.Populate(result)
+    end
+
+    -- Print summary to chat if auto-validate triggered this
+    if sv and sv.autoValidate and not isShowing then
+        local ValidationUI = ESOtk.ValidationUI
+        if ValidationUI and ValidationUI.DisplaySummary then
+            ValidationUI.DisplaySummary(result)
         end
     end
 end
@@ -402,6 +430,17 @@ function Overlay.UnregisterEvents()
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_LEFT)
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_ROLE_CHANGED)
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_CONNECTED_STATUS)
+end
+
+--- Sync event registration based on overlay visibility and auto-validate setting.
+--- Called when either changes.
+function Overlay.SyncAutoValidateEvents()
+    local sv = ESOtk.savedVars
+    if isShowing or (sv and sv.autoValidate) then
+        Overlay.RegisterEvents()
+    else
+        Overlay.UnregisterEvents()
+    end
 end
 
 -- ---------------------------------------------------------------------------

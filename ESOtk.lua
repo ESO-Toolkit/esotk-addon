@@ -22,6 +22,7 @@ local DEFAULT_SAVED_VARS = {
     version = SAVED_VARS_VERSION,
     rosters = {},           -- roster storage for RosterImport (ESO-654)
     verbose = true,         -- show informational messages in chat
+    autoValidate = false,   -- auto-run validation on group changes
     overlayPos = nil,       -- { x, y } saved position for ValidationOverlay (ESO-660)
     overlayVisible = false, -- whether overlay is shown on load (ESO-660)
     overlayLocked = false,  -- whether overlay position is locked (ESO-660)
@@ -104,6 +105,9 @@ local function OnAddonLoaded(event, addonName)
     if addon.savedVars.overlayVisible then
         addon.ValidationOverlay.Show()
     end
+
+    -- Enable auto-validate events if the setting is on (even without overlay)
+    addon.ValidationOverlay.SyncAutoValidateEvents()
 
     -- Register settings panel (requires LibAddonMenu-2.0)
     addon.Settings.Init()

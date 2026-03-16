@@ -57,6 +57,27 @@ function Settings.Init()
         },
 
         -- ---------------------------------------------------------------
+        -- Validation
+        -- ---------------------------------------------------------------
+        {
+            type = "header",
+            name = "Validation",
+        },
+        {
+            type = "checkbox",
+            name = "Auto-Validate on Group Change",
+            tooltip = "Automatically re-run roster validation when group members join, leave, change role, or go online/offline. "
+                .. "Requires at least one roster to be imported. Results are shown in the overlay (if visible) and printed to chat.",
+            getFunc = function() return sv.autoValidate end,
+            setFunc = function(value)
+                sv.autoValidate = value
+                ESOtk.ValidationOverlay.SyncAutoValidateEvents()
+            end,
+            default = false,
+            width = "full",
+        },
+
+        -- ---------------------------------------------------------------
         -- Roster Import
         -- ---------------------------------------------------------------
         {
