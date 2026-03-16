@@ -45,9 +45,8 @@
             <!-- Background -->
             <Controls>
                 <Backdrop name="$(parent)BG" inherits="ZO_DefaultBackdrop"
-                          centerColor="000000" edgeColor="333333">
+                          centerColor="000000" edgeColor="333333" alpha="0.82">
                     <AnchorFill />
-                    <Alpha alpha="0.82" />
                 </Backdrop>
 
                 <!-- Title bar -->
