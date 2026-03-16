@@ -240,9 +240,15 @@ end
 --- @return string
 function Util.StripEmoji(s)
     if not s then return "" end
+    local len = #s
+    -- Fast path: if all bytes are ASCII, return unchanged (avoids table alloc)
+    local allAscii = true
+    for i = 1, len do
+        if s:byte(i) > 127 then allAscii = false; break end
+    end
+    if allAscii then return s end
     local out = {}
     local i = 1
-    local len = #s
     while i <= len do
         local b = s:byte(i)
         if b < 128 then

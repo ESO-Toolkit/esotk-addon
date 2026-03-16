@@ -23,8 +23,12 @@ end
 --- @return table
 local function GetRosters()
     local sv = ESOtk.savedVars
-    sv.rosters = sv.rosters or {}
-    return sv.rosters
+    local r = sv.rosters
+    if not r then
+        r = {}
+        sv.rosters = r
+    end
+    return r
 end
 
 -- ---------------------------------------------------------------------------
@@ -126,7 +130,6 @@ function RosterImport.Import(data)
     end
 
     -- Auto-validate immediately if the setting is on and we're in a group
-    local sv = ESOtk.savedVars
     if sv and sv.autoValidate then
         local GroupScanner   = ESOtk.GroupScanner
         local RosterValidator = ESOtk.RosterValidator

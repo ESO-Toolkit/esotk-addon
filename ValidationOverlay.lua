@@ -439,13 +439,16 @@ local function DoGroupRefresh()
     end
 end
 
+--- Callback for the debounce timer (pre-created to avoid closure allocation).
+local function DebouncedRefresh()
+    pendingRefresh = nil
+    DoGroupRefresh()
+end
+
 --- Debounced wrapper: coalesces rapid group events into a single refresh.
 local function OnGroupChanged()
     if pendingRefresh then return end
-    pendingRefresh = zo_callLater(function()
-        pendingRefresh = nil
-        DoGroupRefresh()
-    end, 500)
+    pendingRefresh = zo_callLater(DebouncedRefresh, 500)
 end
 
 function Overlay.RegisterEvents()

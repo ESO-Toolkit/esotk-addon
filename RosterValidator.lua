@@ -101,18 +101,25 @@ end
 --- Returns nil if no gear sets are specified.
 --- @param slotData table  Roster slot data
 --- @return string|nil
+local GEAR_NAMED_KEYS = { "set1", "set2", "monsterSet" }
+
 local function GearSummary(slotData)
     local gs = slotData.gearSets
     if not gs then return nil end
     local sets, seen = {}, {}
-    local function add(s)
+    for _, key in ipairs(GEAR_NAMED_KEYS) do
+        local s = gs[key]
         if type(s) == "string" and s ~= "" then
             local lower = s:lower()
-            if not seen[lower] then seen[lower] = true; table.insert(sets, s) end
+            if not seen[lower] then seen[lower] = true; sets[#sets + 1] = s end
         end
     end
-    add(gs.set1); add(gs.set2); add(gs.monsterSet)
-    for _, v in ipairs(gs) do add(v) end
+    for _, v in ipairs(gs) do
+        if type(v) == "string" and v ~= "" then
+            local lower = v:lower()
+            if not seen[lower] then seen[lower] = true; sets[#sets + 1] = v end
+        end
+    end
     return #sets > 0 and table.concat(sets, ", ") or nil
 end
 

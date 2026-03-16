@@ -115,6 +115,11 @@ local function OnAddonLoaded(event, addonName)
     -- Enable auto-validate events if the setting is on (even without overlay)
     addon.ValidationOverlay.SyncAutoValidateEvents()
 
+    -- Save overlay position on logout/reload (belt-and-suspenders for crashes)
+    EVENT_MANAGER:RegisterForEvent(ADDON_NAME, EVENT_PLAYER_DEACTIVATED, function()
+        addon.ValidationOverlay.SavePosition()
+    end)
+
     -- Register settings panel (requires LibAddonMenu-2.0)
     addon.Settings.Init()
 
