@@ -2,7 +2,7 @@
     <Controls>
         <!-- Row template: one per roster slot -->
         <Control name="ESOtk_OverlayRowTemplate" virtual="true">
-            <Dimensions x="340" y="24" />
+            <Dimensions x="480" y="24" />
             <Controls>
                 <!-- Status icon (pass/fail/warning) -->
                 <Label name="$(parent)Status" font="ZoFontGameSmall"
@@ -22,14 +22,14 @@
                 <Label name="$(parent)Player" font="ZoFontGameSmall"
                        text="" color="FFFFFF"
                        horizontalAlignment="LEFT" verticalAlignment="CENTER">
-                    <Dimensions x="140" y="24" />
+                    <Dimensions x="220" y="24" />
                     <Anchor point="LEFT" relativeTo="$(parent)Slot" relativePoint="RIGHT" offsetX="2" />
                 </Label>
                 <!-- Detail (role mismatch, offline, etc.) -->
                 <Label name="$(parent)Detail" font="ZoFontGameSmall"
                        text="" color="AAAAAA"
                        horizontalAlignment="LEFT" verticalAlignment="CENTER">
-                    <Dimensions x="115" y="24" />
+                    <Dimensions x="175" y="24" />
                     <Anchor point="LEFT" relativeTo="$(parent)Player" relativePoint="RIGHT" offsetX="2" />
                 </Label>
             </Controls>
@@ -38,7 +38,7 @@
         <!-- Main overlay window -->
         <TopLevelControl name="ESOtk_ValidationOverlay" movable="true" mouseEnabled="true"
                          clampedToScreen="true" hidden="true" layer="OVERLAY" level="100">
-            <Dimensions x="360" y="120" />
+            <Dimensions x="500" y="120" />
             <Anchor point="TOPRIGHT" relativeTo="GuiRoot" relativePoint="TOPRIGHT"
                     offsetX="-20" offsetY="80" />
 
@@ -51,14 +51,14 @@
 
                 <!-- Title bar -->
                 <Control name="$(parent)Header">
-                    <Dimensions x="360" y="28" />
+                    <Dimensions x="500" y="28" />
                     <Anchor point="TOPLEFT" relativeTo="$(parent)" relativePoint="TOPLEFT" />
                     <Controls>
                         <!-- Title text -->
                         <Label name="$(parent)Title" font="ZoFontGameBold"
                                text="ESOtk Roster Validation" color="00FFFF"
                                horizontalAlignment="LEFT" verticalAlignment="CENTER">
-                            <Dimensions x="280" y="28" />
+                            <Dimensions x="420" y="28" />
                             <Anchor point="LEFT" relativeTo="$(parent)" relativePoint="LEFT"
                                     offsetX="8" />
                         </Label>
@@ -77,21 +77,21 @@
                 <Label name="$(parent)Summary" font="ZoFontGameSmall"
                        text="" color="AAAAAA"
                        horizontalAlignment="LEFT" verticalAlignment="CENTER">
-                    <Dimensions x="340" y="20" />
+                    <Dimensions x="480" y="20" />
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Header" relativePoint="BOTTOMLEFT"
                             offsetX="8" />
                 </Label>
 
                 <!-- Divider -->
                 <Texture name="$(parent)Divider" color="444444">
-                    <Dimensions x="340" y="1" />
+                    <Dimensions x="480" y="1" />
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Summary" relativePoint="BOTTOMLEFT"
                             offsetX="-4" offsetY="2" />
                 </Texture>
 
                 <!-- Row container (rows are created dynamically) -->
                 <Control name="$(parent)Rows">
-                    <Dimensions x="350" y="1" />
+                    <Dimensions x="490" y="1" />
                     <Anchor point="TOPLEFT" relativeTo="$(parent)Divider" relativePoint="BOTTOMLEFT"
                             offsetX="4" offsetY="4" />
                 </Control>

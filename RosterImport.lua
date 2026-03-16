@@ -117,6 +117,29 @@ function RosterImport.Import(data)
     else
         Util.Print("Roster '" .. name .. "' imported successfully.")
     end
+
+    -- Auto-validate immediately if the setting is on and we're in a group
+    local sv = ESOtk.savedVars
+    if sv and sv.autoValidate then
+        local GroupScanner   = ESOtk.GroupScanner
+        local RosterValidator = ESOtk.RosterValidator
+        local Overlay         = ESOtk.ValidationOverlay
+        if GroupScanner and RosterValidator then
+            local members, groupSize = GroupScanner.ScanGroup()
+            if groupSize > 0 then
+                local result = RosterValidator.Validate(roster, members, groupSize)
+                RosterValidator.lastResult = result
+                if Overlay and Overlay.IsShowing and Overlay.IsShowing() then
+                    Overlay.Populate(result)
+                else
+                    local ValidationUI = ESOtk.ValidationUI
+                    if ValidationUI and ValidationUI.DisplaySummary then
+                        ValidationUI.DisplaySummary(result)
+                    end
+                end
+            end
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------------

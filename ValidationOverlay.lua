@@ -90,6 +90,12 @@ local function SetRowData(index, icon, iconColor, slotText, playerText, detailTe
     local row = GetRow(index)
     if not row then return end
 
+    -- Strip emoji that ESO fonts can't render
+    if Util then
+        playerText = Util.StripEmoji(playerText)
+        detailText = Util.StripEmoji(detailText)
+    end
+
     local statusCtl = GetControl(row:GetName() .. "Status")
     local slotCtl   = GetControl(row:GetName() .. "Slot")
     local playerCtl = GetControl(row:GetName() .. "Player")
