@@ -175,6 +175,8 @@ local function SlotDetail(sr)
                 table.insert(parts, "class")
             elseif c.check == "online" then
                 table.insert(parts, "offline")
+            elseif c.check == "gear" then
+                table.insert(parts, "gear")
             end
         end
     end
@@ -459,6 +461,10 @@ function Overlay.RegisterEvents()
     EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_LEFT, OnGroupChanged)
     EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_ROLE_CHANGED, OnGroupChanged)
     EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_CONNECTED_STATUS, OnGroupChanged)
+
+    -- Re-validate when the local player equips or unequips gear
+    EVENT_MANAGER:RegisterForEvent("ESOtk_Overlay_Gear", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnGroupChanged)
+    EVENT_MANAGER:AddFilterForEvent("ESOtk_Overlay_Gear", EVENT_INVENTORY_SINGLE_SLOT_UPDATE, REGISTER_FILTER_BAG_ID, BAG_WORN)
 end
 
 function Overlay.UnregisterEvents()
@@ -469,6 +475,7 @@ function Overlay.UnregisterEvents()
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_LEFT)
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_ROLE_CHANGED)
     EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay", EVENT_GROUP_MEMBER_CONNECTED_STATUS)
+    EVENT_MANAGER:UnregisterForEvent("ESOtk_Overlay_Gear", EVENT_INVENTORY_SINGLE_SLOT_UPDATE)
 end
 
 --- Sync event registration based on overlay visibility and auto-validate setting.

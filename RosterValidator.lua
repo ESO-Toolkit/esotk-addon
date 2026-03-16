@@ -213,6 +213,31 @@ local function ValidateSlot(slotKey, slotData, member, matchMethod)
         })
     end
 
+    -- 5. Gear Check (local player only — ESO API can't inspect others' gear)
+    if slotData.gearSets and AreUnitsEqual(member.unitTag, "player") then
+        local GearScanner = ESOtk.GearScanner
+        if GearScanner then
+            local gearData = GearScanner.ScanPlayerGear()
+            local gearResult = GearScanner.ValidateGearAgainstRoster(gearData, slotData)
+            if not gearResult.pass then
+                result.pass = false
+                for _, issue in ipairs(gearResult.issues) do
+                    table.insert(result.checks, {
+                        check  = "gear",
+                        pass   = false,
+                        detail = issue,
+                    })
+                end
+            else
+                table.insert(result.checks, {
+                    check  = "gear",
+                    pass   = true,
+                    detail = "Gear OK",
+                })
+            end
+        end
+    end
+
     return result
 end
 
