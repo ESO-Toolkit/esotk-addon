@@ -15,14 +15,15 @@ local function EnsureUtil()
 end
 
 --- Return the rosters table from SavedVariables (creates if missing).
---- Only writes when the table hasn't been persisted yet, to avoid
---- triggering ZO_SavedVars __newindex on every call.
+--- Explicit write-back forces ZO_SavedVars to store the table via __newindex.
+--- Without this, sv.rosters returns the default {} through the __index
+--- metatable and mutations to it are never persisted to disk.
+--- Note: rawget() cannot be used here because ZO_SavedVars stores data in a
+--- backing table, not on the proxy object itself.
 --- @return table
 local function GetRosters()
     local sv = ESOtk.savedVars
-    if not rawget(sv, "rosters") then
-        sv.rosters = {}
-    end
+    sv.rosters = sv.rosters or {}
     return sv.rosters
 end
 
