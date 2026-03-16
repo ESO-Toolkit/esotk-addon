@@ -113,8 +113,11 @@ function Settings.Init()
             tooltip = "Paste the Base64-encoded roster string here.",
             isMultiline = true,
             isExtraWide = true,
-            getFunc = function() return Settings._pendingRoster or "" end,
-            setFunc = function(value) Settings._pendingRoster = value end,
+            getFunc = function() return sv.lastRosterInput or "" end,
+            setFunc = function(value)
+                Settings._pendingRoster = value
+                sv.lastRosterInput = value
+            end,
             default = "",
             width = "full",
         },
@@ -123,7 +126,7 @@ function Settings.Init()
             name = "Import Roster",
             tooltip = "Decode and import the roster data above.",
             func = function()
-                local data = Settings._pendingRoster
+                local data = Settings._pendingRoster or sv.lastRosterInput
                 if not data or data == "" then
                     ESOtk.Util.Error("Paste roster data into the editbox first.")
                     return

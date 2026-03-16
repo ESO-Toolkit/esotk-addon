@@ -28,6 +28,7 @@ local DEFAULT_SAVED_VARS = {
     overlayPos = nil,       -- { x, y } saved position for ValidationOverlay (ESO-660)
     overlayVisible = false, -- whether overlay is shown on load (ESO-660)
     overlayLocked = false,  -- whether overlay position is locked (ESO-660)
+    lastRosterInput = "",  -- last pasted roster string (repopulates import editbox after reload)
 }
 
 -- ---------------------------------------------------------------------------
