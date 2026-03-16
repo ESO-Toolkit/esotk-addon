@@ -51,6 +51,7 @@ local rows = {}       -- array of created row controls
 local isShowing = false
 local isLocked = false
 local eventRegistered = false
+local fragment = nil   -- ZO_HUDFadeSceneFragment for auto-hide during menus
 
 -- ---------------------------------------------------------------------------
 -- Row management
@@ -245,7 +246,6 @@ end
 function Overlay.Show()
     local control = GetControl(CONTROL_NAME)
     if not control then return end
-    control:SetHidden(false)
     isShowing = true
 
     -- Sync saved var
@@ -263,6 +263,13 @@ function Overlay.Show()
         isLocked = sv.overlayLocked or false
     end
     Overlay.ApplyLockState()
+
+    -- Add scene fragment so the overlay auto-hides during menus (ESC, etc.)
+    if not fragment then
+        fragment = ZO_HUDFadeSceneFragment:New(control)
+    end
+    HUD_SCENE:AddFragment(fragment)
+    HUD_UI_SCENE:AddFragment(fragment)
 
     -- If we have a last result, populate immediately
     EnsureModules()
@@ -282,13 +289,15 @@ function Overlay.Show()
 end
 
 function Overlay.Hide()
-    local control = GetControl(CONTROL_NAME)
-    if not control then return end
-
     -- Save position before hiding
     Overlay.SavePosition()
 
-    control:SetHidden(true)
+    -- Remove scene fragment so the control is hidden in all scenes
+    if fragment then
+        HUD_SCENE:RemoveFragment(fragment)
+        HUD_UI_SCENE:RemoveFragment(fragment)
+    end
+
     isShowing = false
 
     -- Sync saved var
@@ -354,8 +363,9 @@ function Overlay.SavePosition()
     local sv = ESOtk.savedVars
     if not sv then return end
 
-    local _, _, _, _, offsetX, offsetY = control:GetAnchor(0)
-    sv.overlayPos = { x = offsetX, y = offsetY }
+    -- Use absolute screen coordinates (GetLeft/GetTop) instead of anchor
+    -- offsets, which lose their values after the control is dragged.
+    sv.overlayPos = { x = control:GetLeft(), y = control:GetTop() }
 end
 
 --- Called when user stops dragging the overlay.
