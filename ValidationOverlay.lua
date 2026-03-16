@@ -52,6 +52,7 @@ local isShowing = false
 local isLocked = false
 local eventRegistered = false
 local fragment = nil   -- ZO_HUDFadeSceneFragment for auto-hide during menus
+local pendingRefresh = nil  -- debounce handle for group-change events
 
 -- ---------------------------------------------------------------------------
 -- Row management
@@ -75,6 +76,13 @@ local function GetRow(index)
 
     -- Position: stack vertically
     row:SetAnchor(TOPLEFT, parent, TOPLEFT, 0, (index - 1) * ROW_HEIGHT)
+
+    -- Cache child control references to avoid repeated GetControl() lookups
+    row._status = GetControl(row:GetName() .. "Status")
+    row._slot   = GetControl(row:GetName() .. "Slot")
+    row._player = GetControl(row:GetName() .. "Player")
+    row._detail = GetControl(row:GetName() .. "Detail")
+
     rows[index] = row
     return row
 end
@@ -97,10 +105,10 @@ local function SetRowData(index, icon, iconColor, slotText, playerText, detailTe
         detailText = Util.StripEmoji(detailText)
     end
 
-    local statusCtl = GetControl(row:GetName() .. "Status")
-    local slotCtl   = GetControl(row:GetName() .. "Slot")
-    local playerCtl = GetControl(row:GetName() .. "Player")
-    local detailCtl = GetControl(row:GetName() .. "Detail")
+    local statusCtl = row._status
+    local slotCtl   = row._slot
+    local playerCtl = row._player
+    local detailCtl = row._detail
 
     if statusCtl then
         statusCtl:SetText(icon or "")
@@ -378,7 +386,7 @@ end
 -- Auto-refresh on group events
 -- ---------------------------------------------------------------------------
 
-local function OnGroupChanged()
+local function DoGroupRefresh()
     EnsureModules()
     local sv = ESOtk.savedVars
 
@@ -427,6 +435,15 @@ local function OnGroupChanged()
             ValidationUI.DisplaySummary(result)
         end
     end
+end
+
+--- Debounced wrapper: coalesces rapid group events into a single refresh.
+local function OnGroupChanged()
+    if pendingRefresh then return end
+    pendingRefresh = zo_callLater(function()
+        pendingRefresh = nil
+        DoGroupRefresh()
+    end, 500)
 end
 
 function Overlay.RegisterEvents()

@@ -25,13 +25,6 @@ RosterValidator.lastResult = nil
 -- Role mapping helpers
 -- ---------------------------------------------------------------------------
 
---- Map roster role labels to GroupScanner role names.
-local ROLE_LABEL_MAP = {
-    tank   = "Tank",
-    healer = "Healer",
-    dps    = "DPS",
-}
-
 --- Infer the expected role from the roster slot key.
 --- @param slotKey string  e.g. "tank1", "healer2", "dps"
 --- @return string  Normalized role name ("Tank", "Healer", "DPS")
@@ -47,6 +40,7 @@ end
 
 --- Try to find a group member matching a roster slot's playerName.
 --- Matches against character name first, then @account name (case-insensitive).
+--- Expects members to have pre-computed _rawLower / _displayLower fields.
 --- @param playerName string  Name from the roster slot
 --- @param members table      Array of GroupScanner member data
 --- @param matchedTags table  Set of unitTags already matched (skip these)
@@ -55,15 +49,16 @@ local function FindMember(playerName, members, matchedTags)
     if not playerName or playerName == "" then return nil end
     local target = playerName:lower()
     for _, m in ipairs(members) do
-        if not matchedTags[m.unitTag] and m.rawName:lower() == target then return m end
+        if not matchedTags[m.unitTag] and m._rawLower == target then return m end
     end
     for _, m in ipairs(members) do
-        if not matchedTags[m.unitTag] and m.displayName:lower() == target then return m end
+        if not matchedTags[m.unitTag] and m._displayLower == target then return m end
     end
     return nil
 end
 
 --- Find a group member by @account display name (case-insensitive).
+--- Expects members to have pre-computed _displayLower field.
 --- @param displayName string  @account name
 --- @param members table       Array of GroupScanner member data
 --- @param matchedTags table   Set of unitTags already matched (skip these)
@@ -72,7 +67,7 @@ local function FindMemberByDisplayName(displayName, members, matchedTags)
     if not displayName or displayName == "" then return nil end
     local target = displayName:lower()
     for _, m in ipairs(members) do
-        if not matchedTags[m.unitTag] and m.displayName:lower() == target then return m end
+        if not matchedTags[m.unitTag] and m._displayLower == target then return m end
     end
     return nil
 end
@@ -249,6 +244,12 @@ function RosterValidator.Validate(roster, members, groupSize)
     local matchedTags = {}  -- unitTags that have been matched to a slot
     local slots = CollectSlots(roster)
     result.totalSlots = #slots
+
+    -- Pre-compute lowercase names once to avoid repeated :lower() per match
+    for _, m in ipairs(members) do
+        m._rawLower     = m.rawName:lower()
+        m._displayLower = m.displayName:lower()
+    end
 
     -- Build slotKey → member mapping via three-pass matching
     local slotMembers = {}   -- slotKey → member
