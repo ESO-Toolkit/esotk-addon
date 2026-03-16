@@ -57,6 +57,44 @@ function Settings.Init()
         },
 
         -- ---------------------------------------------------------------
+        -- Roster Import
+        -- ---------------------------------------------------------------
+        {
+            type = "header",
+            name = "Roster Import",
+        },
+        {
+            type = "description",
+            text = "Paste a Base64-encoded roster string from the web UI, then click Import.",
+        },
+        {
+            type = "editbox",
+            name = "Roster Data",
+            tooltip = "Paste the Base64-encoded roster string here.",
+            isMultiline = true,
+            isExtraWide = true,
+            getFunc = function() return Settings._pendingRoster or "" end,
+            setFunc = function(value) Settings._pendingRoster = value end,
+            default = "",
+            width = "full",
+        },
+        {
+            type = "button",
+            name = "Import Roster",
+            tooltip = "Decode and import the roster data above.",
+            func = function()
+                local data = Settings._pendingRoster
+                if not data or data == "" then
+                    ESOtk.Util.Error("Paste roster data into the editbox first.")
+                    return
+                end
+                ESOtk.RosterImport.Import(data)
+                Settings._pendingRoster = ""
+            end,
+            width = "full",
+        },
+
+        -- ---------------------------------------------------------------
         -- Validation Overlay
         -- ---------------------------------------------------------------
         {
