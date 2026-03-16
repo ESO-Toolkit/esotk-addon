@@ -129,7 +129,6 @@ function Settings.Init()
                     return
                 end
                 ESOtk.RosterImport.Import(data)
-                Settings._pendingRoster = ""
             end,
             width = "full",
         },
