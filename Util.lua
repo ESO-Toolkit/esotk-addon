@@ -230,19 +230,26 @@ function Util.ShallowCopy(t)
     return copy
 end
 
---- Strip emoji and non-ASCII symbols from a string.
---- ESO fonts support ASCII and 2-byte Latin Extended (accented chars like ñ, ü).
---- All 3-byte (U+0800+) and 4-byte (U+10000+) sequences render as boxes.
+--- Strip characters that ESO fonts cannot render.
+--- ESO Lua is based on Lua 5.1 which does NOT support \xNN hex escapes,
+--- so all byte ranges use decimal \NNN notation.
+--- ESO fonts reliably render ASCII + Latin-1 Supplement + Latin Extended-A
+--- (2-byte UTF-8 with lead bytes C2-C5 / 194-197: é ñ ü ą ę ő ş etc.).
+--- Everything else (Cyrillic, Arabic, CJK, emoji, etc.) renders as boxes.
 --- @param s string
 --- @return string
 function Util.StripEmoji(s)
     if not s then return "" end
-    -- Remove 4-byte UTF-8 sequences (U+10000+): F0-F4 followed by 3 continuation bytes
-    s = s:gsub("[\xF0-\xF4][\x80-\xBF][\x80-\xBF][\x80-\xBF]", "")
-    -- Remove ALL 3-byte UTF-8 sequences (U+0800-U+FFFF): E0-EF followed by 2 continuation bytes
-    s = s:gsub("[\xE0-\xEF][\x80-\xBF][\x80-\xBF]", "")
+    -- Remove 4-byte UTF-8 sequences (U+10000+): F0-F4 + 3 continuation bytes
+    s = s:gsub("[\240-\244][\128-\191][\128-\191][\128-\191]", "")
+    -- Remove 3-byte UTF-8 sequences (U+0800-U+FFFF): E0-EF + 2 continuation bytes
+    s = s:gsub("[\224-\239][\128-\191][\128-\191]", "")
+    -- Remove 2-byte UTF-8 sequences outside Latin range (Cyrillic, Arabic, etc.)
+    -- Keep C2-C5 (194-197): Latin-1 Supplement + Latin Extended-A
+    -- Strip C6-DF (198-223): IPA, Greek, Cyrillic, Armenian, Hebrew, Arabic, etc.
+    s = s:gsub("[\198-\223][\128-\191]", "")
     -- Remove orphaned continuation bytes that lost their leading byte
-    s = s:gsub("[\x80-\xBF]+", "")
+    s = s:gsub("[\128-\191]+", "")
     -- Collapse multiple spaces into one, trim
     s = s:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
     return s
